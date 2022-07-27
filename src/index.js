@@ -20,6 +20,8 @@ class ToDoModel {
         const { access_token: accessToken } = await response.json();
         this.#token = accessToken;
 
+        localStorage.setItem(userLogin, this.#token);
+
         this.getNotes();
     }
 
@@ -36,6 +38,8 @@ class ToDoModel {
         const userNotes = await response.json();
 
         this.noteList = userNotes;
+
+        await this.renderList();
     }
 
     async addNote(noteText, priority) {
@@ -48,24 +52,21 @@ class ToDoModel {
         headers.set('Content-Type', 'application/json');
         headers.set('Authorization', `Bearer ${this.#token}`);
 
-        const response = await fetch(`${this.#baseUrl}/todo`, {
+        const response = await fetch(`${this.#baseUrl}/to1do`, {
             method: 'POST',
             headers,
             body: requestBody
         });
 
         const noteResponse = await response.json();
-        console.log(noteResponse);
-
-        if (!noteText.trim()) {
-            return;
-        }
 
         const isUnique = this.checkUnique(noteText);
 
-        if (isUnique && noteResponse) {
+        if (isUnique && !noteResponse.statusCode) {
             this.noteList.push(noteResponse);
         }
+
+        await this.renderList();
     }
 
     checkUnique(noteText) {
@@ -84,7 +85,11 @@ class ToDoModel {
 
         const noteResponse = await response.json();
 
-        this.noteList = this.noteList.filter((note) => note._id !== +id);
+        if (!noteResponse.statusCode) {
+            this.noteList = this.noteList.filter((note) => note._id !== +id);
+        }
+
+        await this.renderList();
     }
 
     async toggleIsDone(id) {
@@ -106,19 +111,11 @@ class ToDoModel {
                 this.noteList[index].checked = !this.noteList[index].checked;
             }
         }
-    }
-}
 
-class ToDoView {
-    constructor(model) {
-        this.model = model;
-        this.form = document.querySelector('.form');
-        this.cards = document.querySelector('.notes__list');
-        this.popup = document.querySelector('.popup');
-        this.select = document.querySelector('.form__select');
+        await this.renderList();
     }
 
-    renderList() {
+    async renderList() {
         const list = document.querySelector('.notes__list');
         list.innerHTML = '';
 
@@ -128,7 +125,15 @@ class ToDoView {
         const listDone = document.createElement('ul');
         listDone.classList.add('notes__list_done');
 
-        for (const note of this.model.noteList) {
+        const listPriority0 = document.createElement('ul');
+        const listPriority1 = document.createElement('ul');
+        const listPriority2 = document.createElement('ul');
+
+        const listPriorityDone0 = document.createElement('ul');
+        const listPriorityDone1 = document.createElement('ul');
+        const listPriorityDone2 = document.createElement('ul');
+
+        for (const note of this.noteList) {
             const listItem = document.createElement('li');
             listItem.classList.add('notes__item');
             listItem.classList.add(`priority_color_${note.priority}`);
@@ -155,12 +160,46 @@ class ToDoView {
             if (note.checked === true) {
                 text.classList.add('done');
                 doneButton.textContent = 'Undone';
-                listDone.append(listItem);
+                // listItem.style.display = 'none';
+                switch (note.priority) {
+                case 0:
+                    listPriorityDone0.append(listItem);
+                    break;
+                case 1:
+                    listPriorityDone1.append(listItem);
+                    break;
+                case 2:
+                    listPriorityDone2.append(listItem);
+                    break;
+                }
+
+                listDone.append(listPriorityDone2, listPriorityDone1, listPriorityDone0);
             } else {
-                listTodo.append(listItem);
+                switch (note.priority) {
+                case 0:
+                    listPriority0.append(listItem);
+                    break;
+                case 1:
+                    listPriority1.append(listItem);
+                    break;
+                case 2:
+                    listPriority2.append(listItem);
+                    break;
+                }
+                listTodo.append(listPriority2, listPriority1, listPriority0);
             }
         }
         list.append(listTodo, listDone);
+    }
+}
+
+class ToDoView {
+    constructor(model) {
+        this.model = model;
+        this.form = document.querySelector('.form');
+        this.cards = document.querySelector('.notes__list');
+        this.popup = document.querySelector('.popup');
+        this.select = document.querySelector('.form__select');
     }
 
     initSubmit() {
@@ -176,8 +215,6 @@ class ToDoView {
             }
 
             e.target.reset();
-
-            this.renderList();
         });
     }
 
@@ -187,11 +224,7 @@ class ToDoView {
                 const id = e.target.closest('.notes__item').getAttribute('id');
                 this.model.deleteNote(id);
             }
-
-            this.renderList();
         });
-
-        this.renderList();
     }
 
     initToggle() {
@@ -200,13 +233,8 @@ class ToDoView {
                 const id = e.target.closest('.notes__item').getAttribute('id');
                 this.model.toggleIsDone(id);
             }
-
-            this.renderList();
         });
-
-        this.renderList();
     }
-
 
     initLogin() {
         this.popup.addEventListener('submit', (e) => {
@@ -222,9 +250,9 @@ class ToDoView {
                 return;
             }
 
-            this.model.auth(userLogin);
-
             this.popup.style.display = 'none';
+
+            this.model.auth(userLogin);
         });
     }
 }
