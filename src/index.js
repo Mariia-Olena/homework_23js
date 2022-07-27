@@ -1,50 +1,110 @@
-const indexNotFound = -1;
-const deleteOneIndex = 1;
-
 class ToDoModel {
     noteList = [];
+    #token ='';
+    #baseUrl = 'https://todo.hillel.it';
 
-    constructor() {
-        if (localStorage.getItem('noteList')) {
-            this.noteList = JSON.parse(localStorage.getItem('noteList'));
-        }
+    async auth(userLogin) {
+        const requestBody = JSON.stringify({
+            value: userLogin
+        });
+
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/json');
+
+        const response = await fetch(`${this.#baseUrl}/auth/login`, {
+            method: 'POST',
+            headers,
+            body: requestBody
+        });
+
+        const { access_token: accessToken } = await response.json();
+        this.#token = accessToken;
+
+        this.getNotes();
     }
 
-    addNote(noteTitle, noteText) {
-        if (!noteTitle.trim() || !noteText.trim()) {
+    async getNotes() {
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/json');
+        headers.set('Authorization', `Bearer ${this.#token}`);
+
+        const response = await fetch(`${this.#baseUrl}/todo`, {
+            method: 'GET',
+            headers
+        });
+
+        const userNotes = await response.json();
+
+        this.noteList = userNotes;
+    }
+
+    async addNote(noteText, priority) {
+        const requestBody = JSON.stringify({
+            value: noteText,
+            priority
+        });
+
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/json');
+        headers.set('Authorization', `Bearer ${this.#token}`);
+
+        const response = await fetch(`${this.#baseUrl}/todo`, {
+            method: 'POST',
+            headers,
+            body: requestBody
+        });
+
+        const noteResponse = await response.json();
+        console.log(noteResponse);
+
+        if (!noteText.trim()) {
             return;
         }
 
-        const isUnique = this.checkUnique(noteTitle);
+        const isUnique = this.checkUnique(noteText);
 
-        if (isUnique) {
-            const note = {
-                title: noteTitle,
-                text: noteText,
-                isDone: false
-            };
-
-            this.noteList.push(note);
+        if (isUnique && noteResponse) {
+            this.noteList.push(noteResponse);
         }
     }
 
-    checkUnique(noteTitle) {
-        return !this.noteList.find(note => note.title === noteTitle);
+    checkUnique(noteText) {
+        return !this.noteList.find(note => note.noteText === noteText);
     }
 
-    deleteNote(noteTitle) {
-        const deleteIndex = this.noteList.findIndex(note => note.title === noteTitle);
+    async deleteNote(id) {
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/json');
+        headers.set('Authorization', `Bearer ${this.#token}`);
 
-        if (deleteIndex !== indexNotFound) {
-            this.noteList.splice(deleteIndex, deleteOneIndex);
-        }
+        const response = await fetch(`${this.#baseUrl}/todo/${id}`, {
+            method: 'DELETE',
+            headers,
+        });
+
+        const noteResponse = await response.json();
+
+        this.noteList = this.noteList.filter((note) => note._id !== +id);
     }
 
-    toggleIsDone(noteTitle) {
-        const index = this.noteList.findIndex(note => note.title === noteTitle);
+    async toggleIsDone(id) {
+        const headers = new Headers();
+        headers.set('Content-Type', 'application/json');
+        headers.set('Authorization', `Bearer ${this.#token}`);
 
-        if (index !== indexNotFound) {
-            this.noteList[index].isDone = !this.noteList[index].isDone;
+        const response = await fetch(`${this.#baseUrl}/todo/${id}/toggle`, {
+            method: 'PUT',
+            headers,
+        });
+
+        const noteResponse = await response.json();
+
+        if (noteResponse) {
+            const index = this.noteList.findIndex(note => note._id === +id);
+            // eslint-disable-next-line no-magic-numbers
+            if (index !== -1) {
+                this.noteList[index].checked = !this.noteList[index].checked;
+            }
         }
     }
 }
@@ -54,6 +114,8 @@ class ToDoView {
         this.model = model;
         this.form = document.querySelector('.form');
         this.cards = document.querySelector('.notes__list');
+        this.popup = document.querySelector('.popup');
+        this.select = document.querySelector('.form__select');
     }
 
     renderList() {
@@ -69,16 +131,12 @@ class ToDoView {
         for (const note of this.model.noteList) {
             const listItem = document.createElement('li');
             listItem.classList.add('notes__item');
-            listItem.setAttribute('id', `${note.title}`);
-
-            const title = document.createElement('h2');
-            title.classList.add('notes__title');
-            title.textContent = `${note.title}`;
+            listItem.classList.add(`priority_color_${note.priority}`);
+            listItem.setAttribute('id', `${note._id}`);
 
             const text = document.createElement('p');
             text.classList.add('notes__text');
-            text.setAttribute('readonly', 'readonly');
-            text.textContent = `${note.text}`;
+            text.textContent = `${note.value}`;
 
             const wrap = document.createElement('div');
             wrap.classList.add('notes__wrap');
@@ -92,10 +150,9 @@ class ToDoView {
             removeButton.textContent = 'Remove';
 
             wrap.append(doneButton, removeButton);
-            listItem.append(title, text, wrap);
+            listItem.append(text, wrap);
 
-            if (note.isDone === true) {
-                title.classList.add('done');
+            if (note.checked === true) {
                 text.classList.add('done');
                 doneButton.textContent = 'Undone';
                 listDone.append(listItem);
@@ -104,8 +161,6 @@ class ToDoView {
             }
         }
         list.append(listTodo, listDone);
-
-        localStorage.setItem('noteList', JSON.stringify(this.model.noteList));
     }
 
     initSubmit() {
@@ -113,12 +168,13 @@ class ToDoView {
             e.preventDefault();
 
             const fromData = new FormData(e.target);
-            const formTitle = fromData.get('title').trim();
             const formText = fromData.get('text').trim();
+            const formPriority = +this.select.value;
 
-            if (formTitle && formText) {
-                this.model.addNote(formTitle, formText);
+            if (formText) {
+                this.model.addNote(formText, formPriority);
             }
+
             e.target.reset();
 
             this.renderList();
@@ -128,25 +184,48 @@ class ToDoView {
     initRemove() {
         this.cards.addEventListener('click', (e) => {
             if (e.target.classList.contains('notes__button_remove')) {
-                const idTitle = e.target.closest('.notes__item').getAttribute('id');
-                this.model.deleteNote(idTitle);
-            }
-
-            this.renderList();
-        });
-    }
-
-    initToggle() {
-        this.cards.addEventListener('click', (e) => {
-            if (e.target.classList.contains('notes__button_done')) {
-                const idTitle = e.target.closest('.notes__item').getAttribute('id');
-                this.model.toggleIsDone(idTitle);
+                const id = e.target.closest('.notes__item').getAttribute('id');
+                this.model.deleteNote(id);
             }
 
             this.renderList();
         });
 
         this.renderList();
+    }
+
+    initToggle() {
+        this.cards.addEventListener('click', (e) => {
+            if (e.target.classList.contains('notes__button_done')) {
+                const id = e.target.closest('.notes__item').getAttribute('id');
+                this.model.toggleIsDone(id);
+            }
+
+            this.renderList();
+        });
+
+        this.renderList();
+    }
+
+
+    initLogin() {
+        this.popup.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const fromData = new FormData(e.target);
+            const formEmail = fromData.get('popup-email').trim();
+            const formPassword = fromData.get('popup-password').trim();
+
+            const userLogin = formEmail.concat(formPassword);
+
+            if (!userLogin) {
+                return;
+            }
+
+            this.model.auth(userLogin);
+
+            this.popup.style.display = 'none';
+        });
     }
 }
 
@@ -155,3 +234,4 @@ const noteView = new ToDoView(noteModel);
 noteView.initSubmit();
 noteView.initRemove();
 noteView.initToggle();
+noteView.initLogin();
