@@ -52,7 +52,7 @@ class ToDoModel {
         headers.set('Content-Type', 'application/json');
         headers.set('Authorization', `Bearer ${this.#token}`);
 
-        const response = await fetch(`${this.#baseUrl}/to1do`, {
+        const response = await fetch(`${this.#baseUrl}/todo`, {
             method: 'POST',
             headers,
             body: requestBody
