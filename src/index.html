@@ -10,10 +10,11 @@
     <title>Hillel home work</title>
 </head>
 <body>
+    <section class="main">
     <div class="container">
         <div class="form__wrap">
-            <h1 class="form__title">Write your note</h1>
             <form class="form" name="form">
+                <h1 class="form__title">Write your note</h1>
                 <input type="text" class="form__input" name="text" placeholder="Text...">
                 <p class="form__select__text">Choose priority</p>
                 <select name="select" class="form__select">
@@ -24,10 +25,12 @@
                 <button class="form__button form__input">Add note</button>
             </form>
         </div>
-        <h1 class="form__title">Your notes:</h1>
+        <h1 class="form__title form__title_notes">Your notes:</h1>
         <ul class="notes__list">
         </ul>
     </div>
+    <button class="button__log-out">Log out</button>
+    </section>
     <div class="popup">
         <div class="popup__wrap">
             <div class="popup__content">

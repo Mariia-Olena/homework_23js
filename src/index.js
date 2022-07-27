@@ -20,7 +20,13 @@ class ToDoModel {
         const { access_token: accessToken } = await response.json();
         this.#token = accessToken;
 
-        localStorage.setItem(userLogin, this.#token);
+        localStorage.setItem('userToken', this.#token);
+
+        this.getNotes();
+    }
+
+    checkToken(token) {
+        this.#token = token;
 
         this.getNotes();
     }
@@ -160,7 +166,7 @@ class ToDoModel {
             if (note.checked === true) {
                 text.classList.add('done');
                 doneButton.textContent = 'Undone';
-                // listItem.style.display = 'none';
+
                 switch (note.priority) {
                 case 0:
                     listPriorityDone0.append(listItem);
@@ -200,6 +206,7 @@ class ToDoView {
         this.cards = document.querySelector('.notes__list');
         this.popup = document.querySelector('.popup');
         this.select = document.querySelector('.form__select');
+        this.ButtonLogOut = document.querySelector('.button__log-out');
     }
 
     initSubmit() {
@@ -237,6 +244,7 @@ class ToDoView {
     }
 
     initLogin() {
+        this.popup.style.display = 'flex';
         this.popup.addEventListener('submit', (e) => {
             e.preventDefault();
 
@@ -255,6 +263,26 @@ class ToDoView {
             this.model.auth(userLogin);
         });
     }
+
+    initCheckToken() {
+        const token = localStorage.getItem('userToken');
+
+        if (token) {
+            this.model.checkToken(token);
+            this.popup.style.display = 'none';
+            return;
+        } else {
+            this.initLogin();
+        }
+    }
+
+    initLogOut() {
+        this.ButtonLogOut.addEventListener('click', () => {
+            localStorage.removeItem('userToken');
+            this.model.renderList();
+            this.initLogin();
+        });
+    }
 }
 
 const noteModel = new ToDoModel();
@@ -262,4 +290,5 @@ const noteView = new ToDoView(noteModel);
 noteView.initSubmit();
 noteView.initRemove();
 noteView.initToggle();
-noteView.initLogin();
+noteView.initCheckToken();
+noteView.initLogOut();
