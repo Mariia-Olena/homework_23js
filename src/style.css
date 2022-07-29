@@ -126,7 +126,7 @@ input:focus{
     height: 100%;
     top: 0;
     left: 0;
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     background-color: #bfbfc5;
@@ -134,7 +134,6 @@ input:focus{
 
 .popup__content {
     min-height: 100%;
-
 }
 
 .priority_color_0 {

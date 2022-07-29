@@ -19,16 +19,13 @@ class ToDoModel {
 
         const { access_token: accessToken } = await response.json();
         this.#token = accessToken;
-
         localStorage.setItem('userToken', this.#token);
 
-        this.getNotes();
+        await this.getNotes();
     }
 
     checkToken(token) {
         this.#token = token;
-
-        this.getNotes();
     }
 
     async getNotes() {
@@ -43,9 +40,9 @@ class ToDoModel {
 
         const userNotes = await response.json();
 
-        this.noteList = userNotes;
-
-        await this.renderList();
+        if (response.ok === true) {
+            this.noteList = userNotes;
+        }
     }
 
     async addNote(noteText, priority) {
@@ -65,14 +62,11 @@ class ToDoModel {
         });
 
         const noteResponse = await response.json();
-
         const isUnique = this.checkUnique(noteText);
 
-        if (isUnique && !noteResponse.statusCode) {
+        if (isUnique && response.ok === true) {
             this.noteList.push(noteResponse);
         }
-
-        await this.renderList();
     }
 
     checkUnique(noteText) {
@@ -89,13 +83,9 @@ class ToDoModel {
             headers,
         });
 
-        const noteResponse = await response.json();
-
-        if (!noteResponse.statusCode) {
+        if (response.ok === true) {
             this.noteList = this.noteList.filter((note) => note._id !== +id);
         }
-
-        await this.renderList();
     }
 
     async toggleIsDone(id) {
@@ -112,16 +102,26 @@ class ToDoModel {
 
         if (noteResponse) {
             const index = this.noteList.findIndex(note => note._id === +id);
-            // eslint-disable-next-line no-magic-numbers
             if (index !== -1) {
                 this.noteList[index].checked = !this.noteList[index].checked;
             }
         }
+    }
+}
 
-        await this.renderList();
+class ToDoView {
+    form = document.querySelector('.form');
+    cards = document.querySelector('.notes__list');
+    popup = document.querySelector('.popup');
+    select = document.querySelector('.form__select');
+    buttonSubmit = document.querySelector('.form__button');
+    buttonLogOut = document.querySelector('.button__log-out');
+
+    constructor(model) {
+        this.model = model;
     }
 
-    async renderList() {
+    renderList() {
         const list = document.querySelector('.notes__list');
         list.innerHTML = '';
 
@@ -139,7 +139,7 @@ class ToDoModel {
         const listPriorityDone1 = document.createElement('ul');
         const listPriorityDone2 = document.createElement('ul');
 
-        for (const note of this.noteList) {
+        for (const note of this.model.noteList) {
             const listItem = document.createElement('li');
             listItem.classList.add('notes__item');
             listItem.classList.add(`priority_color_${note.priority}`);
@@ -178,7 +178,6 @@ class ToDoModel {
                     listPriorityDone2.append(listItem);
                     break;
                 }
-
                 listDone.append(listPriorityDone2, listPriorityDone1, listPriorityDone0);
             } else {
                 switch (note.priority) {
@@ -197,20 +196,9 @@ class ToDoModel {
         }
         list.append(listTodo, listDone);
     }
-}
-
-class ToDoView {
-    constructor(model) {
-        this.model = model;
-        this.form = document.querySelector('.form');
-        this.cards = document.querySelector('.notes__list');
-        this.popup = document.querySelector('.popup');
-        this.select = document.querySelector('.form__select');
-        this.ButtonLogOut = document.querySelector('.button__log-out');
-    }
 
     initSubmit() {
-        this.form.addEventListener('submit', (e) => {
+        this.form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const fromData = new FormData(e.target);
@@ -218,40 +206,44 @@ class ToDoView {
             const formPriority = +this.select.value;
 
             if (formText) {
-                this.model.addNote(formText, formPriority);
-            }
+                await this.model.addNote(formText, formPriority);
 
+                this.renderList();
+            }
             e.target.reset();
         });
     }
 
     initRemove() {
-        this.cards.addEventListener('click', (e) => {
+        this.cards.addEventListener('click', async (e) => {
             if (e.target.classList.contains('notes__button_remove')) {
                 const id = e.target.closest('.notes__item').getAttribute('id');
-                this.model.deleteNote(id);
+                await this.model.deleteNote(id);
+
+                this.renderList();
             }
         });
     }
 
     initToggle() {
-        this.cards.addEventListener('click', (e) => {
+        this.cards.addEventListener('click', async (e) => {
             if (e.target.classList.contains('notes__button_done')) {
                 const id = e.target.closest('.notes__item').getAttribute('id');
-                this.model.toggleIsDone(id);
+                await this.model.toggleIsDone(id);
+
+                this.renderList();
             }
         });
     }
 
     initLogin() {
         this.popup.style.display = 'flex';
-        this.popup.addEventListener('submit', (e) => {
+        this.popup.addEventListener('submit', async (e) => {
             e.preventDefault();
 
             const fromData = new FormData(e.target);
             const formEmail = fromData.get('popup-email').trim();
             const formPassword = fromData.get('popup-password').trim();
-
             const userLogin = formEmail.concat(formPassword);
 
             if (!userLogin) {
@@ -259,16 +251,19 @@ class ToDoView {
             }
 
             this.popup.style.display = 'none';
+            await this.model.auth(userLogin);
 
-            this.model.auth(userLogin);
+            this.renderList();
         });
     }
 
-    initCheckToken() {
+    async initCheckToken() {
         const token = localStorage.getItem('userToken');
 
         if (token) {
             this.model.checkToken(token);
+            await this.model.getNotes();
+            this.renderList();
             this.popup.style.display = 'none';
             return;
         } else {
@@ -277,9 +272,10 @@ class ToDoView {
     }
 
     initLogOut() {
-        this.ButtonLogOut.addEventListener('click', () => {
+        this.buttonLogOut.addEventListener('click', () => {
+            this.popup.style.display = 'flex';
             localStorage.removeItem('userToken');
-            this.model.renderList();
+
             this.initLogin();
         });
     }
