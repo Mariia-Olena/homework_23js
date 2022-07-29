@@ -24,7 +24,7 @@ class ToDoModel {
         await this.getNotes();
     }
 
-    checkToken(token) {
+    getToken(token) {
         this.#token = token;
     }
 
@@ -42,6 +42,8 @@ class ToDoModel {
 
         if (response.ok === true) {
             this.noteList = userNotes;
+        } else {
+            throw new Error();
         }
     }
 
@@ -66,6 +68,8 @@ class ToDoModel {
 
         if (isUnique && response.ok === true) {
             this.noteList.push(noteResponse);
+        } else {
+            throw new Error();
         }
     }
 
@@ -85,6 +89,8 @@ class ToDoModel {
 
         if (response.ok === true) {
             this.noteList = this.noteList.filter((note) => note._id !== +id);
+        } else {
+            throw new Error();
         }
     }
 
@@ -98,13 +104,11 @@ class ToDoModel {
             headers,
         });
 
-        const noteResponse = await response.json();
-
-        if (noteResponse) {
-            const index = this.noteList.findIndex(note => note._id === +id);
-            if (index !== -1) {
-                this.noteList[index].checked = !this.noteList[index].checked;
-            }
+        if (response.ok === true) {
+            const toggleNote = this.noteList.find(note => note._id === +id);
+            toggleNote.checked = !toggleNote.checked;
+        } else {
+            throw new Error();
         }
     }
 }
@@ -116,6 +120,7 @@ class ToDoView {
     select = document.querySelector('.form__select');
     buttonSubmit = document.querySelector('.form__button');
     buttonLogOut = document.querySelector('.button__log-out');
+    error = document.querySelector('.error');
 
     constructor(model) {
         this.model = model;
@@ -163,31 +168,35 @@ class ToDoView {
             wrap.append(doneButton, removeButton);
             listItem.append(text, wrap);
 
+            const priorityLevel0 = 0;
+            const priorityLevel1 = 1;
+            const priorityLevel2 = 2;
+
             if (note.checked === true) {
                 text.classList.add('done');
                 doneButton.textContent = 'Undone';
 
                 switch (note.priority) {
-                case 0:
+                case priorityLevel0:
                     listPriorityDone0.append(listItem);
                     break;
-                case 1:
+                case priorityLevel1:
                     listPriorityDone1.append(listItem);
                     break;
-                case 2:
+                case priorityLevel2:
                     listPriorityDone2.append(listItem);
                     break;
                 }
                 listDone.append(listPriorityDone2, listPriorityDone1, listPriorityDone0);
             } else {
                 switch (note.priority) {
-                case 0:
+                case priorityLevel0:
                     listPriority0.append(listItem);
                     break;
-                case 1:
+                case priorityLevel1:
                     listPriority1.append(listItem);
                     break;
-                case 2:
+                case priorityLevel2:
                     listPriority2.append(listItem);
                     break;
                 }
@@ -204,12 +213,11 @@ class ToDoView {
             const fromData = new FormData(e.target);
             const formText = fromData.get('text').trim();
             const formPriority = +this.select.value;
-
             if (formText) {
-                await this.model.addNote(formText, formPriority);
-
+                await this.model.addNote(formText, formPriority).catch( () => this.showError());
                 this.renderList();
             }
+
             e.target.reset();
         });
     }
@@ -218,7 +226,7 @@ class ToDoView {
         this.cards.addEventListener('click', async (e) => {
             if (e.target.classList.contains('notes__button_remove')) {
                 const id = e.target.closest('.notes__item').getAttribute('id');
-                await this.model.deleteNote(id);
+                await this.model.deleteNote(id).catch( () => this.showError());
 
                 this.renderList();
             }
@@ -229,7 +237,7 @@ class ToDoView {
         this.cards.addEventListener('click', async (e) => {
             if (e.target.classList.contains('notes__button_done')) {
                 const id = e.target.closest('.notes__item').getAttribute('id');
-                await this.model.toggleIsDone(id);
+                await this.model.toggleIsDone(id).catch( () => this.showError());
 
                 this.renderList();
             }
@@ -251,8 +259,7 @@ class ToDoView {
             }
 
             this.popup.style.display = 'none';
-            await this.model.auth(userLogin);
-
+            await this.model.auth(userLogin).catch( () => this.showError());
             this.renderList();
         });
     }
@@ -261,8 +268,8 @@ class ToDoView {
         const token = localStorage.getItem('userToken');
 
         if (token) {
-            this.model.checkToken(token);
-            await this.model.getNotes();
+            this.model.getToken(token);
+            await this.model.getNotes().catch( () => this.showError());
             this.renderList();
             this.popup.style.display = 'none';
             return;
@@ -278,6 +285,15 @@ class ToDoView {
 
             this.initLogin();
         });
+    }
+
+    showError() {
+        this.error.style.display = 'block';
+        const delay = 2000;
+
+        setTimeout(() => {
+            this.error.style.display = 'none';
+        }, delay);
     }
 }
 

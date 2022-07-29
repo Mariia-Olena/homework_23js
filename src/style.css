@@ -162,3 +162,15 @@ input:focus{
     background-color: #ca4b4b;
     color: #FFFFFF;
 }
+
+.error {
+    position: fixed;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 12px;
+    background-color: #6baddc;
+    padding: 30px;
+    color: #FFFFFF;
+    display: none;
+}
